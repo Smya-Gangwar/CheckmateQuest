@@ -124,7 +124,7 @@ const AdminGenerateQuestionsModal = ({
         }
     );
 
-    if (invalidMCQs.length > 0) {
+    if (invalidQuestions.length > 0) {
         alert("All selected MCQ questions must have all option fields filled.");
         return;
     }
