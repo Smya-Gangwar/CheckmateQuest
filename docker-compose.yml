@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+
+  mysql:
+    image: mysql:8
+    container_name: cq_mysql
+
+    environment:
+      MYSQL_ROOT_PASSWORD: checkmatequestroot
+      MYSQL_DATABASE: checkmatequest
+
+    ports:
+      - "3307:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: cq_backend
+
+    depends_on:
+      - mysql
+
+    env_file:
+      - ./backend/.env
+
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+
+    container_name: cq_frontend
+
+    depends_on:
+      - backend
+
+    environment:
+      VITE_API_URL: http://localhost:3000
+
+    ports:
+      - "5173:5173"
+
+volumes:
+  mysql_data:

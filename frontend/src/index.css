@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* 
+Countdown animation:
+Appear -> Zooms -> Fades -> Next Number Appears
+*/
+@keyframes countdownZoom {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.15;
+  }
+  70% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+.animate-countdown {
+  animation: countdownZoom 1s ease-in-out;
+}

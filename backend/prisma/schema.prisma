@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id              Int      @id @default(autoincrement())
+  name            String
+  email           String   @unique
+  hashed_password String
+  created_at      DateTime @default(now())
+  rooms           Room[]
+}
+
+model Room {
+  id           Int           @id @default(autoincrement())
+  name         String
+  room_code    String        @unique
+  status       RoomStatus
+  max_teams    Int
+  starts_at    DateTime?
+  ends_at      DateTime?
+  created_at   DateTime      @default(now())
+  admin_id     Int
+  board        Board?
+  sessions     GameSession[]
+  leaderboards Leaderboard[]
+  admin        Admin         @relation(fields: [admin_id], references: [id])
+  teams        Team[]
+
+  @@index([admin_id], map: "Room_admin_id_fkey")
+}
+
+model Team {
+  id           Int                 @id @default(autoincrement())
+  name         String
+  join_code    String              @unique
+  status       TeamStatus
+  joined_at    DateTime            @default(now())
+  room_id      Int
+  connections  ConnectionSession[]
+  sessions     GameSession[]
+  leaderboards Leaderboard[]
+  room         Room                @relation(fields: [room_id], references: [id], onDelete: Cascade)
+
+  @@unique([room_id, name])
+}
+
+model Board {
+  id           Int               @id @default(autoincrement())
+  rl_seed      Int
+  tile_layout  Json
+  generated_at DateTime          @default(now())
+  room_id      Int               @unique
+  room         Room              @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  evaluations  BoardEvaluation[]
+  sessions     GameSession[]
+  tiles        Tile[]
+}
+
+model Tile {
+  id                Int               @id @default(autoincrement())
+  row_index         Int
+  col_index         Int
+  tile_type         TileType
+  points_value      Int
+  hint_text         String?
+  glow_level        Int?
+  color_tag         String?
+  board_id          Int
+  attempts          AttemptLog[]
+  coin_transactions CoinTransaction[]
+  hints             HintLog[]
+  board             Board             @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  tile_states       TileState[]
+
+  @@unique([board_id, row_index, col_index])
+}
+
+model GameSession {
+  id                Int               @id @default(autoincrement())
+  score             Int               @default(0)
+  coins             Int               @default(100)
+  status            SessionStatus
+  started_at        DateTime?
+  trap_freeze_until DateTime?
+  finished_at       DateTime?
+  room_id           Int
+  team_id           Int
+  board_id          Int
+  attempts          AttemptLog[]
+  coin_transactions CoinTransaction[]
+  board             Board             @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  room              Room              @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  team              Team              @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  hints             HintLog[]
+  leaderboards      Leaderboard[]
+  tile_states       TileState[]
+
+  @@index([board_id], map: "GameSession_board_id_fkey")
+  @@index([room_id], map: "GameSession_room_id_fkey")
+  @@index([team_id], map: "GameSession_team_id_fkey")
+}
+
+model Question {
+  id               Int          @id @default(autoincrement())
+  content          String       @db.Text
+  question_type    QuestionType
+  options          Json?
+  answer           String
+  image_url        String?
+  difficulty_score Float
+  category         String
+  created_at       DateTime     @default(now())
+  attempts         AttemptLog[]
+  tile_states      TileState[]
+}
+
+model TileState {
+  id                 Int           @id @default(autoincrement())
+  state              TileStateEnum
+  unlocked_at        DateTime?
+  solved_at          DateTime?
+  score_earned       Int           @default(0)
+  trap_triggered     Boolean       @default(false)
+  wrong_attempts     Int           @default(0)
+  session_id         Int
+  tile_id            Int
+  active_question_id Int?
+  active_question    Question?     @relation(fields: [active_question_id], references: [id])
+  session            GameSession   @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  tile               Tile          @relation(fields: [tile_id], references: [id], onDelete: Cascade)
+
+  @@unique([session_id, tile_id])
+  @@index([active_question_id], map: "TileState_active_question_id_fkey")
+  @@index([tile_id], map: "TileState_tile_id_fkey")
+}
+
+model AttemptLog {
+  id            Int         @id @default(autoincrement())
+  submitted_ans String
+  is_correct    Boolean
+  score_delta   Int
+  attempted_at  DateTime    @default(now())
+  session_id    Int
+  tile_id       Int
+  question_id   Int
+  question      Question    @relation(fields: [question_id], references: [id])
+  session       GameSession @relation(fields: [session_id], references: [id])
+  tile          Tile        @relation(fields: [tile_id], references: [id])
+
+  @@index([question_id], map: "AttemptLog_question_id_fkey")
+  @@index([session_id], map: "AttemptLog_session_id_fkey")
+  @@index([tile_id], map: "AttemptLog_tile_id_fkey")
+}
+
+model HintLog {
+  id         Int         @id @default(autoincrement())
+  hint_text  String
+  hint_type  HintType
+  viewed_at  DateTime    @default(now())
+  session_id Int
+  tile_id    Int
+  session    GameSession @relation(fields: [session_id], references: [id])
+  tile       Tile        @relation(fields: [tile_id], references: [id])
+
+  @@index([session_id], map: "HintLog_session_id_fkey")
+  @@index([tile_id], map: "HintLog_tile_id_fkey")
+}
+
+model CoinTransaction {
+  id            Int         @id @default(autoincrement())
+  reason        String
+  delta         Int
+  balance_after Int
+  created_at    DateTime    @default(now())
+  session_id    Int
+  tile_id       Int
+  session       GameSession @relation(fields: [session_id], references: [id])
+  tile          Tile        @relation(fields: [tile_id], references: [id])
+
+  @@index([session_id], map: "CoinTransaction_session_id_fkey")
+  @@index([tile_id], map: "CoinTransaction_tile_id_fkey")
+}
+
+model Leaderboard {
+  id          Int         @id @default(autoincrement())
+  rank        Int
+  score       Int
+  finish_time DateTime?
+  snapshot_at DateTime    @default(now())
+  room_id     Int
+  session_id  Int
+  team_id     Int
+  room        Room        @relation(fields: [room_id], references: [id])
+  session     GameSession @relation(fields: [session_id], references: [id])
+  team        Team        @relation(fields: [team_id], references: [id])
+
+  @@index([room_id], map: "Leaderboard_room_id_fkey")
+  @@index([session_id], map: "Leaderboard_session_id_fkey")
+  @@index([team_id], map: "Leaderboard_team_id_fkey")
+}
+
+model ConnectionSession {
+  id              Int       @id @default(autoincrement())
+  socket_id       String    @unique
+  connected_at    DateTime  @default(now())
+  disconnected_at DateTime?
+  is_active       Boolean   @default(true)
+  last_ping_at    DateTime?
+  team_id         Int
+  team            Team      @relation(fields: [team_id], references: [id])
+
+  @@index([team_id], map: "ConnectionSession_team_id_fkey")
+}
+
+model BoardEvaluation {
+  id                  Int   @id @default(autoincrement())
+  fairness_score      Int
+  avg_completion_time Float
+  avg_score           Int
+  dead_end_rate       Int
+  path_diversity      Int
+  board_id            Int
+  board               Board @relation(fields: [board_id], references: [id])
+
+  @@index([board_id], map: "BoardEvaluation_board_id_fkey")
+}
+
+enum RoomStatus {
+  WAITING
+  RUNNING
+  CLOSED
+}
+
+enum TeamStatus {
+  ACTIVE
+  DISCONNECTED
+  ELIMINATED
+}
+
+enum TileType {
+  PAWN
+  KNIGHT
+  ROOK
+  TRAP
+  TREASURE
+}
+
+enum SessionStatus {
+  ACTIVE
+  FINISHED
+  FROZEN
+}
+
+enum TileStateEnum {
+  LOCKED
+  UNLOCKED
+  SOLVED
+}
+
+enum QuestionType {
+  MCQ
+  ONE_WORD
+}
+
+enum HintType {
+  TEXT
+  VISUAL
+}

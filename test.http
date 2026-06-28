@@ -1,0 +1,8 @@
+POST http://localhost:3000/rooms/51/start
+Content-Type: application/json
+
+{
+  "name": "Room 7",
+  "max_teams": 4,
+  "admin_id": 1
+}
