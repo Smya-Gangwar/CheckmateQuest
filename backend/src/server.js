@@ -47,7 +47,7 @@ app.get("/test-board", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/", gameplayRoutes);
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Starting the Express server on the specified port. The callback function is executed once the server is up and running, logging a message to the console.
 const server = http.createServer(app);
