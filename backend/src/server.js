@@ -23,7 +23,15 @@ const gameplayRoutes = require("./routes/gameplay.routes");
 // initializes a new Express application by calling the top-level express() function. 'app' object serves as core of web server
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://checkmate-quest.vercel.app"
+    ],
+    credentials: true,
+  })
+);
 // The express.json() is a built-in middleware in Express. Helps an app read JSON data sent from the client (in POST/PUT requests) and makes it available in req.body
 app.use(express.json());
 
