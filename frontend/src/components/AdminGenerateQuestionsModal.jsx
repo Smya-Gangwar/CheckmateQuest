@@ -62,33 +62,35 @@ const AdminGenerateQuestionsModal = ({
     }
   };
 
-  const updateQuestion = (
-    index,
-    field,
-    value
-  ) => {
+  const updateQuestion = (index, field, value) => {
     setGenerated((prev) =>
-      prev.map((q, i) =>
-        i === index ? { ...q, [field]: value } : q
-      )
-    );
-  };
+        prev.map((q, i) => {
+        if (i !== index) return q;
+        if (
+            field === "question_type" &&
+            value === "MCQ" &&
+            (!q.options || q.options.length === 0)
+        ) {
+            return {
+            ...q,
+            question_type: "MCQ",
+            options: ["", "", "", ""],
+            answer: q.answer || "",
+            };
+        }
 
-  const updateOption = (
-    qIndex,
-    optionIndex,
-    value
-  ) => {
-    setGenerated((prev) =>
-      prev.map((q, i) => {
-        if (i !== qIndex) return q;
-        const options = [...q.options];
-        options[optionIndex] = value;
+        if (field === "question_type" && value === "ONE_WORD") {
+            return {
+            ...q,
+            question_type: "ONE_WORD",
+            };
+        }
+
         return {
-          ...q,
-          options,
+            ...q,
+            [field]: value,
         };
-      })
+        })
     );
   };
 
