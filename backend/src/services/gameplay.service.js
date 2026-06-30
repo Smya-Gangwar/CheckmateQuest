@@ -33,6 +33,7 @@ const getBoardState = async (sessionId) => {
         id: sessionId,
       },
       include: {
+        room: true,
         tile_states: {
           include: {
             tile: true,
@@ -53,11 +54,7 @@ const getBoardState = async (sessionId) => {
 
   // Calculate remaining time
   let remainingTime = 0;
-  const room = await prisma.room.findUnique({
-    where: {
-        id: session.room_id,
-    },
-  });
+  const room = session.room;
 
   if (session.status !== "FINISHED" && room?.starts_at) {
     const endTime = new Date(room.starts_at).getTime() + 15 * 60 * 1000;

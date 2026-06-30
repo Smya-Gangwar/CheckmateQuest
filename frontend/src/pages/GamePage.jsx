@@ -77,7 +77,7 @@ const GamePage = () => {
       await fetchBoard();
     });
 
-    const interval = setInterval(fetchBoard, 1000);
+    const interval = setInterval(fetchBoard, 5000);
 
     return () => {
       clearInterval(interval);
@@ -150,8 +150,6 @@ const GamePage = () => {
         }
       );
 
-      await fetchBoard();
-
       if (response.data.correct) {
         setModalOpen(false);
         setModalData(null);
@@ -175,8 +173,6 @@ const GamePage = () => {
       );
 
       setHintTileId(response.data.tile_id);
-
-      await fetchBoard();
 
       setTimeout(() => {
         setHintTileId(null);
