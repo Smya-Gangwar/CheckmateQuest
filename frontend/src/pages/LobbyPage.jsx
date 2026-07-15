@@ -222,17 +222,46 @@ const LobbyPage = () => {
               Battle Rules
             </h2>
 
-            <ul className="space-y-4 text-gray-300 text-sm">
-              <li>• Unlock tiles and answer questions.</li>
-              <li>• Correct answers give points.</li>
-              <li>• Wrong answers deduct points.</li>
-              <li>• Treasure gives coins.</li>
-              <li>• Coins can be used for hints.</li>
-              <li>• Trap freezes your board for 15 seconds.</li>
-              <li>• Pawn = Easy</li>
-              <li>• Knight = Medium</li>
-              <li>• Rook = Hard</li>
-              <li>• Highest score wins.</li>
+            <ul className="space-y-3 text-gray-300 text-sm">
+              <li>
+                • Every player starts on the same chessboard with their own independent progress.
+              </li>
+
+              <li>
+                • Open unlocked tiles to receive questions.
+              </li>
+
+              <li>
+                • Correct answers award points and may unlock new tiles.
+              </li>
+
+              <li>
+                • Wrong answers reduce your score and lower the tile's future reward.
+              </li>
+
+              <li>
+                • Pawn = Easy, Knight = Medium, Rook = Hard, Treasure = Bonus Rewards.
+              </li>
+
+              <li>
+                • Trap tiles are hidden and freeze your board for 15 seconds while deducting score and coins.
+              </li>
+
+              <li>
+                • Coins earned during the game can be exchanged for hints.
+              </li>
+
+              <li>
+                • Hints reveal the best available tile for a short duration.
+              </li>
+
+              <li>
+                • The match lasts exactly <strong>15 minutes</strong>.
+              </li>
+
+              <li>
+                • Highest score at the end of the timer wins.
+              </li>
             </ul>
           </div>
         </div>

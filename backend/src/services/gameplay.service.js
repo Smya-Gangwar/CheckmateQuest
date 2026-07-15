@@ -77,6 +77,11 @@ const getBoardState = async (sessionId) => {
         };
       }
     );
+  
+  let finalLeaderboard = null;
+  if (session.status === "FINISHED") {
+    finalLeaderboard = await buildLeaderboard(session.room_id);
+  }
 
   return {
     session_id: session.id,
@@ -85,6 +90,7 @@ const getBoardState = async (sessionId) => {
     status: session.status,
     remaining_time: remainingTime,
     tiles: transformedTiles,
+    final_leaderboard: finalLeaderboard,
   };
 };
 
