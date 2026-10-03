@@ -36,24 +36,24 @@ app.use(
 app.use(express.json());
 
 // Standard Express.js route handler. Tells backend to listen for HTTP GET requests at the root URL (/) and respond with mentioned text
-app.get("/", (req, res) => {
+app.get("/api", (req, res) => {
   res.send("Checkmate Quest Backend Running");
 });
 
-app.use("/admin", adminRoutes);
-app.use("/admin/questions", questionRoutes);
-app.use("/admin/ai", aiRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/admin/questions", questionRoutes);
+app.use("/api/admin/ai", aiRoutes);
 
-app.use("/rooms", roomRoutes);
-app.use("/", leaderboardRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api", leaderboardRoutes);
 
-app.get("/test-board", (req, res) => {
+app.get("/api/test-board", (req, res) => {
   const board = generateBoardLayout();
   res.json(board);
 });
 
-app.use("/auth", authRoutes);
-app.use("/", gameplayRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/", gameplayRoutes);
 
 const PORT = process.env.PORT || 3000;
 
