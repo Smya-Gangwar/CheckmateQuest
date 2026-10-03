@@ -1,8 +1,16 @@
-POST http://localhost:3000/rooms/51/start
+POST checkmatequest-production.up.railway.app/rooms
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbklkIjoyLCJlbWFpbCI6ImFkbWluQGNoZWNrbWF0ZXF1ZXN0LmNvbSIsImlhdCI6MTc4MDczMzg5MiwiZXhwIjoxNzgxMzM4NjkyfQ.3pNzqjgUfB9OKn1M9aIqtaLZhEmm8RMkJcBIcZuiE00
 Content-Type: application/json
 
 {
-  "name": "Room 7",
-  "max_teams": 4,
-  "admin_id": 1
+  "questions": [
+    {
+      "content":"Test",
+      "question_type":"ONE_WORD",
+      "options":null,
+      "answer":"Test",
+      "difficulty_score":5,
+      "category":"OS"
+    }
+  ]
 }

@@ -15,6 +15,7 @@ import api from "../services/api";
 import socket from "../services/socket";
 
 const LobbyPage = () => {
+  const countdownRef = useRef(null);
   const navigate = useNavigate();
   const roomId = localStorage.getItem("roomId");
 
@@ -50,39 +51,99 @@ const LobbyPage = () => {
     }
   };
 
-  const startCountdown = (sessionData) => {
-    let seconds = 10;
-    setCountdown(seconds);
+  const startCountdown = (sessionData, startsAt) => {
+    const teamId = localStorage.getItem("teamId");
 
-    const interval = setInterval(() => {
-      seconds--;
+    const mySession = sessionData.find(
+      (s) => s.team_id == teamId
+    );
+
+    if (!mySession) {
+      console.error(
+        "No game session found for this team",
+        teamId
+      );
+      return;
+    }
+
+    localStorage.setItem(
+      "sessionId",
+      String(mySession.id)
+    );
+
+    sessionStorage.removeItem(
+      "gameConnectionToken"
+    );
+
+    sessionStorage.removeItem(
+      "finalGameBoard"
+    );
+
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+
+    const targetTime =
+      new Date(startsAt).getTime();
+
+    const updateCountdown = () => {
+      const seconds = Math.max(
+        0,
+        Math.ceil(
+          (targetTime - Date.now()) / 1000
+        )
+      );
+
       setCountdown(seconds);
 
       if (seconds <= 0) {
-        clearInterval(interval);
-
-        const teamId =
-          localStorage.getItem("teamId");
-
-        const mySession = sessionData.find(
-          (s) => s.team_id == teamId
-        );
-
-        localStorage.setItem(
-          "sessionId",
-          mySession.id
-        );
-
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
         navigate("/game");
       }
-    }, 1000);
+    };
+
+    updateCountdown();
+
+    countdownRef.current =
+      setInterval(updateCountdown, 250);
+  };
+
+  const recoverRunningMatch = async () => {
+    try {
+      const roomResponse = await api.get(`/rooms/${roomId}`);
+      const currentRoom = roomResponse.data;
+
+      if (
+        currentRoom.status === "RUNNING" &&
+        currentRoom.starts_at
+      ) {
+        const sessionsResponse =
+          await api.get(`/sessions/${roomId}`);
+
+        startCountdown(
+          sessionsResponse.data,
+          currentRoom.starts_at
+        );
+      }
+    } catch (error) {
+      console.error("Failed to recover running match:", error);
+    }
   };
 
   useEffect(() => {
-    fetchTeams();
-    fetchRoom();
+    const initializeLobby = async () => {
+      await fetchTeams();
+      await fetchRoom();
 
-    socket.emit("join-room", Number(roomId));
+      socket.emit("join-room", Number(roomId));
+
+      // Recover the countdown if the match has already started
+      // and this browser missed the match-started socket event.
+      await recoverRunningMatch();
+    };
+
+    initializeLobby();
 
     pollingRef.current = setInterval(() => {
       fetchTeams();
@@ -90,15 +151,33 @@ const LobbyPage = () => {
 
     return () => {
       clearInterval(pollingRef.current);
+
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
     };
   }, []);
 
   useEffect(() => {
     const handleMatchStarted = async () => {
-      const res = await api.get(
-        `/sessions/${roomId}`
-      );
-      startCountdown(res.data);
+      try {
+        const [sessionsResponse, roomResponse] =
+          await Promise.all([
+            api.get(`/sessions/${roomId}`),
+            api.get(`/rooms/${roomId}`),
+          ]);
+
+        startCountdown(
+          sessionsResponse.data,
+          roomResponse.data.starts_at
+        );
+      } catch (error) {
+        console.error(
+          "Failed to start countdown:",
+          error
+        );
+      }
     };
 
     socket.on(

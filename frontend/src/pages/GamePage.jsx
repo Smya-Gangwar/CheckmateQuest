@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+} from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import BoardGrid from "../components/BoardGrid";
 import ScoreBar from "../components/ScoreBar";
@@ -8,6 +13,7 @@ import TrapModal from "../components/TrapModal";
 import socket from "../services/socket";
 
 const GamePage = () => {
+  const navigate = useNavigate();
   const [boardData, setBoardData] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
@@ -15,19 +21,54 @@ const GamePage = () => {
   const [gameEnded, setGameEnded] = useState(false);
   const [liveScore, setLiveScore] = useState(null);
   const [hintTileId, setHintTileId] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
   const [teamName, setTeamName] = useState("");
-
-  const sessionId = localStorage.getItem("sessionId");
+  const sessionIdRef = useRef(null);
+  const [connectionBlocked, setConnectionBlocked] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
 
   const fetchBoard = async () => {
+    const activeSessionId = sessionIdRef.current;
+
+    if (
+      !activeSessionId ||
+      !Number.isInteger(Number(activeSessionId)) ||
+      Number(activeSessionId) <= 0
+    ) {
+      console.error(
+        "[GAME] Cannot fetch board. Invalid sessionId:",
+        activeSessionId
+      );
+      return;
+    }
+
     try {
-      const response = await api.get(`/sessions/${sessionId}/board`);
+      console.log(
+        "[BOARD TOKEN]",
+        sessionStorage.getItem(
+          "gameConnectionToken"
+        )
+      );
+      const response = await api.get(
+        `/sessions/${activeSessionId}/board`,
+        {
+          headers: {
+            "x-game-connection-token":
+              sessionStorage.getItem(
+                "gameConnectionToken"
+              ),
+          },
+        }
+      );
+
       setBoardData(response.data);
-      if (
-        response.data.status === "FINISHED" ||
-        response.data.remaining_time <= 0
-      ) {
+
+      if (response.data.status === "FINISHED" || response.data.remaining_time <= 0) {
         setGameEnded(true);
+        sessionStorage.setItem(
+          "finalGameBoard",
+          JSON.stringify(response.data)
+        );
       }
     } catch (error) {
       console.error(error);
@@ -54,36 +95,274 @@ const GamePage = () => {
   };
 
   useEffect(() => {
-    fetchBoard();
-    fetchMyTeam();
+    let boardInterval;
+    let heartbeatInterval;
 
-    const roomId = localStorage.getItem("roomId");
-    socket.emit("join-room", Number(roomId));
+    const savedFinalBoard =
+      sessionStorage.getItem("finalGameBoard");
 
-    socket.on("board-updated", async (data) => {
-      if (data.session_id == Number(sessionId)) {
+    if (savedFinalBoard) {
+      try {
+        const finalBoard =
+          JSON.parse(savedFinalBoard);
+
+        if (finalBoard.status === "FINISHED") {
+          setBoardData(finalBoard);
+          setGameEnded(true);
+        }
+      } catch (error) {
+        console.error(
+          "Failed to restore final game state:",
+          error
+        );
+
+        sessionStorage.removeItem(
+          "finalGameBoard"
+        );
+      }
+    }
+
+    const handlePageHide = () => {
+      const token =
+        sessionStorage.getItem(
+          "gameConnectionToken"
+        );
+
+      const activeSessionId =
+        sessionIdRef.current;
+
+      if (
+        !token ||
+        !activeSessionId
+      ) {
+        return;
+      }
+
+      fetch(
+        `${import.meta.env.VITE_API_URL}/sessions/${activeSessionId}/disconnect`,
+        {
+          method: "POST",
+          headers: {
+            "X-Game-Connection-Token":
+              token,
+          },
+          keepalive: true,
+        }
+      ).catch(() => {});
+    };
+
+    window.addEventListener(
+      "pagehide",
+      handlePageHide
+    );
+
+    const connectAndStart = async () => {
+      try {
+        setConnectionError("");
+        const roomId = localStorage.getItem("roomId");
+        const teamId = localStorage.getItem("teamId");
+        const joinCode = localStorage.getItem("joinCode");
+
+        const sessionsResponse = await api.get(
+          `/sessions/${roomId}`
+        );
+
+        const mySession = sessionsResponse.data.find(
+          (session) => session.team_id == teamId
+        );
+
+        if (!mySession) {
+          throw new Error("No game session found for this team.");
+        }
+
+        const activeSessionId =
+          String(mySession.id);
+
+        if (
+          !activeSessionId ||
+          activeSessionId === "null" ||
+          activeSessionId === "undefined" ||
+          !Number.isInteger(
+            Number(activeSessionId)
+          ) ||
+          Number(activeSessionId) <= 0
+        ) {
+          throw new Error(
+            "Invalid game session ID."
+          );
+        }
+
+        localStorage.setItem(
+          "sessionId",
+          activeSessionId
+        );
+
+        sessionIdRef.current =
+          activeSessionId;
+
+        setSessionId(activeSessionId);
+
+        console.log(
+          "[GAME] Active session:",
+          activeSessionId
+        );
+
+        /*
+        * IMPORTANT:
+        * We ALWAYS request a new connection.
+        * We do NOT send an existing token here.
+        * This prevents another tab from reusing
+        * a copied sessionStorage token.
+        */
+        const connectionResponse = await api.post(
+          `/sessions/${activeSessionId}/connect`,
+          {
+            team_id: Number(teamId),
+            join_code: joinCode,
+          }
+        );
+
+        sessionStorage.setItem(
+          "gameConnectionToken",
+          connectionResponse.data.connectionToken
+        );
+
+        /*
+        * Only start gameplay after the server
+        * successfully grants the connection.
+        */
         await fetchBoard();
+        await fetchMyTeam();
+
+        socket.emit("join-room", Number(roomId));
+
+        socket.on(
+          "board-updated",
+          async (data) => {
+            if (
+              data.session_id ==
+              Number(sessionIdRef.current)
+            ) {
+              await fetchBoard();
+            }
+          }
+        );
+
+        socket.on(
+          "score-updated",
+          (data) => {
+            if (
+              data.session_id ==
+              Number(sessionIdRef.current)
+            ) {
+              setLiveScore(data.score);
+            }
+          }
+        );
+
+        socket.on(
+          "match-ended",
+          async () => {
+            setGameEnded(true);
+            await fetchBoard();
+          }
+        );
+
+        /*
+        * Existing board polling remains.
+        */
+        boardInterval = setInterval(fetchBoard, 5000);
+
+        /*
+        * Renew the server-side connection
+        * every 5 seconds.
+        * Lease duration = 30 seconds.
+        */
+        heartbeatInterval =
+          setInterval(async () => {
+            const activeSessionId =
+              sessionIdRef.current;
+
+            if (
+              !activeSessionId ||
+              !Number.isInteger(
+                Number(activeSessionId)
+              ) ||
+              Number(activeSessionId) <= 0
+            ) {
+              console.error(
+                "[GAME] Skipping heartbeat. Invalid sessionId:",
+                activeSessionId
+              );
+              return;
+            }
+
+            try {
+              await api.post(
+                `/sessions/${activeSessionId}/heartbeat`,
+                {},
+                {
+                  headers: {
+                    "x-game-connection-token":
+                      sessionStorage.getItem(
+                        "gameConnectionToken"
+                      ),
+                  },
+                }
+              );
+            } catch (error) {
+              if (
+                error.response?.data?.code ===
+                "GAME_CONNECTION_EXPIRED"
+              ) {
+                setConnectionBlocked(true);
+
+                setConnectionError(
+                  "Your game connection is no longer active. Another tab or device may now be using this game."
+                );
+              }
+            }
+          }, 5000);
+      } catch (error) {
+        const code = error.response?.data?.code;
+        const message = error.response?.data?.error;
+
+        // Another tab/device is using this session.
+        if (code === "GAME_SESSION_IN_USE") {
+          setConnectionBlocked(true);
+          setConnectionError(
+            "This game is already open in another tab or on another device. Only one active game screen is allowed at a time."
+          );
+          return;
+        }
+
+        // Match has already ended.
+        // Do not show "Game Already Open".
+        if (message === "Match has ended") {
+          setConnectionBlocked(false);
+          setGameEnded(true);
+          setConnectionError("");
+          return;
+        }
+
+        console.error(error);
+
+        setConnectionError(
+          message ||
+            "Unable to connect to this game session."
+        );
       }
-    });
-
-    socket.on("score-updated", (data) => {
-      if (data.session_id == Number(sessionId)) {
-        setLiveScore(data.score);
-      }
-    });
-
-    socket.on("match-ended", async () => {
-      setGameEnded(true);
-      await fetchBoard();
-    });
-
-    const interval = setInterval(fetchBoard, 5000);
+    };
+    connectAndStart();
 
     return () => {
-      clearInterval(interval);
+      clearInterval(boardInterval);
+      clearInterval(heartbeatInterval);
+
       socket.off("board-updated");
       socket.off("score-updated");
       socket.off("match-ended");
+      window.removeEventListener("pagehide", handlePageHide);
     };
   }, []);
 
@@ -104,10 +383,35 @@ const GamePage = () => {
     };
   }, []);
 
+  if (connectionBlocked) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+          <h1 className="text-3xl font-bold mb-3">
+            Game Already Open
+          </h1>
+
+          <p className="text-gray-400 mb-6">
+            {connectionError}
+          </p>
+
+          <button
+            onClick={() =>
+              navigate("/lobby")
+            }
+            className="rounded-xl bg-white px-6 py-3 font-bold text-black hover:bg-gray-200"
+          >
+            Back to Lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!boardData) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        Loading board...
+        {connectionError || "Connecting to game..."}
       </div>
     );
   }
@@ -117,8 +421,18 @@ const GamePage = () => {
 
     try {
       const response = await api.post(
-        `/sessions/${sessionId}/open-tile`,
-        { tile_id: tile.tile_id }
+        `/sessions/${sessionIdRef.current}/open-tile`,
+        {
+          tile_id: tile.tile_id,
+        },
+        {
+          headers: {
+            "x-game-connection-token":
+              sessionStorage.getItem(
+                "gameConnectionToken"
+              ),
+          },
+        }
       );
 
       setModalData(response.data);
@@ -143,10 +457,18 @@ const GamePage = () => {
   const handleAnswerSubmit = async (answer) => {
     try {
       const response = await api.post(
-        `/sessions/${sessionId}/submit-answer`,
+        `/sessions/${sessionIdRef.current}/submit-answer`,
         {
           tile_id: modalData.tile_id,
           answer: String(answer),
+        },
+        {
+          headers: {
+            "x-game-connection-token":
+              sessionStorage.getItem(
+                "gameConnectionToken"
+              ),
+          },
         }
       );
 
@@ -169,7 +491,16 @@ const GamePage = () => {
   const handleHint = async () => {
     try {
       const response = await api.post(
-        `/sessions/${sessionId}/hint`
+        `/sessions/${sessionIdRef.current}/hint`,
+        {},
+        {
+          headers: {
+            "x-game-connection-token":
+              sessionStorage.getItem(
+                "gameConnectionToken"
+              ),
+          },
+        }
       );
 
       setHintTileId(response.data.tile_id);

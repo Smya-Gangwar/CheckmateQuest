@@ -89,6 +89,11 @@ model GameSession {
   started_at        DateTime?
   trap_freeze_until DateTime?
   finished_at       DateTime?
+
+  active_connection_token      String?  @unique
+  active_connection_expires_at DateTime?
+  active_connection_last_seen  DateTime?
+
   room_id           Int
   team_id           Int
   board_id          Int

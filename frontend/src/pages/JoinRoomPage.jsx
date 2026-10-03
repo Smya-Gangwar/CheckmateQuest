@@ -42,7 +42,11 @@ const JoinRoomPage = () => {
       localStorage.setItem("joinCode", data.join_code);
       localStorage.setItem("teamName", data.team.name);
 
+      localStorage.removeItem("sessionId");
+      sessionStorage.removeItem("gameConnectionToken");
+
       navigate("/lobby");
+
     } catch (error) {
       setError(getErrorMessage(error));
     } finally {

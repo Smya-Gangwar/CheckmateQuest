@@ -1,0 +1,36 @@
+{
+  "total": 456.371875,
+  "staticReward": 154.7,
+  "sim": {
+    "avgScore": 251.25,
+    "avgExplored": 12.625,
+    "avgTrapHits": 1.375,
+    "variance": 54.6875,
+    "agentResults": [
+      {
+        "agent": "safe",
+        "score": 240,
+        "trapHits": 0,
+        "explored": 11
+      },
+      {
+        "agent": "risky",
+        "score": 255,
+        "trapHits": 2.5,
+        "explored": 12.5
+      },
+      {
+        "agent": "greedy",
+        "score": 250,
+        "trapHits": 0,
+        "explored": 11
+      },
+      {
+        "agent": "explorer",
+        "score": 260,
+        "trapHits": 3,
+        "explored": 16
+      }
+    ]
+  }
+}
