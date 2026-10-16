@@ -24,7 +24,6 @@ const GamePage = () => {
   const [sessionId, setSessionId] = useState(null);
   const [teamName, setTeamName] = useState("");
   const sessionIdRef = useRef(null);
-  const [connectionBlocked, setConnectionBlocked] = useState(false);
   const [connectionError, setConnectionError] = useState("");
 
   const fetchBoard = async () => {
@@ -43,12 +42,6 @@ const GamePage = () => {
     }
 
     try {
-      console.log(
-        "[BOARD TOKEN]",
-        sessionStorage.getItem(
-          "gameConnectionToken"
-        )
-      );
       const response = await api.get(
         `/sessions/${activeSessionId}/board`,
         {
@@ -96,7 +89,6 @@ const GamePage = () => {
 
   useEffect(() => {
     let boardInterval;
-    let heartbeatInterval;
 
     const savedFinalBoard =
       sessionStorage.getItem("finalGameBoard");
@@ -121,40 +113,6 @@ const GamePage = () => {
         );
       }
     }
-
-    const handlePageHide = () => {
-      const token =
-        sessionStorage.getItem(
-          "gameConnectionToken"
-        );
-
-      const activeSessionId =
-        sessionIdRef.current;
-
-      if (
-        !token ||
-        !activeSessionId
-      ) {
-        return;
-      }
-
-      fetch(
-        `${import.meta.env.VITE_API_URL}/sessions/${activeSessionId}/disconnect`,
-        {
-          method: "POST",
-          headers: {
-            "X-Game-Connection-Token":
-              token,
-          },
-          keepalive: true,
-        }
-      ).catch(() => {});
-    };
-
-    window.addEventListener(
-      "pagehide",
-      handlePageHide
-    );
 
     const connectAndStart = async () => {
       try {
@@ -272,74 +230,13 @@ const GamePage = () => {
         * Existing board polling remains.
         */
         boardInterval = setInterval(fetchBoard, 5000);
-
-        /*
-        * Renew the server-side connection
-        * every 5 seconds.
-        * Lease duration = 30 seconds.
-        */
-        heartbeatInterval =
-          setInterval(async () => {
-            const activeSessionId =
-              sessionIdRef.current;
-
-            if (
-              !activeSessionId ||
-              !Number.isInteger(
-                Number(activeSessionId)
-              ) ||
-              Number(activeSessionId) <= 0
-            ) {
-              console.error(
-                "[GAME] Skipping heartbeat. Invalid sessionId:",
-                activeSessionId
-              );
-              return;
-            }
-
-            try {
-              await api.post(
-                `/sessions/${activeSessionId}/heartbeat`,
-                {},
-                {
-                  headers: {
-                    "x-game-connection-token":
-                      sessionStorage.getItem(
-                        "gameConnectionToken"
-                      ),
-                  },
-                }
-              );
-            } catch (error) {
-              if (
-                error.response?.data?.code ===
-                "GAME_CONNECTION_EXPIRED"
-              ) {
-                setConnectionBlocked(true);
-
-                setConnectionError(
-                  "Your game connection is no longer active. Another tab or device may now be using this game."
-                );
-              }
-            }
-          }, 5000);
+        
       } catch (error) {
-        const code = error.response?.data?.code;
         const message = error.response?.data?.error;
-
-        // Another tab/device is using this session.
-        if (code === "GAME_SESSION_IN_USE") {
-          setConnectionBlocked(true);
-          setConnectionError(
-            "This game is already open in another tab or on another device. Only one active game screen is allowed at a time."
-          );
-          return;
-        }
 
         // Match has already ended.
         // Do not show "Game Already Open".
         if (message === "Match has ended") {
-          setConnectionBlocked(false);
           setGameEnded(true);
           setConnectionError("");
           return;
@@ -357,12 +254,10 @@ const GamePage = () => {
 
     return () => {
       clearInterval(boardInterval);
-      clearInterval(heartbeatInterval);
 
       socket.off("board-updated");
       socket.off("score-updated");
       socket.off("match-ended");
-      window.removeEventListener("pagehide", handlePageHide);
     };
   }, []);
 
@@ -382,31 +277,6 @@ const GamePage = () => {
       );
     };
   }, []);
-
-  if (connectionBlocked) {
-    return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
-        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-          <h1 className="text-3xl font-bold mb-3">
-            Game Already Open
-          </h1>
-
-          <p className="text-gray-400 mb-6">
-            {connectionError}
-          </p>
-
-          <button
-            onClick={() =>
-              navigate("/lobby")
-            }
-            className="rounded-xl bg-white px-6 py-3 font-bold text-black hover:bg-gray-200"
-          >
-            Back to Lobby
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (!boardData) {
     return (

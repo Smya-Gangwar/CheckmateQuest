@@ -133,13 +133,17 @@ const LobbyPage = () => {
 
   useEffect(() => {
     const initializeLobby = async () => {
-      await fetchTeams();
-      await fetchRoom();
-
+      // Join the Socket.IO room immediately.
+      // Do not wait for the initial API requests.
       socket.emit("join-room", Number(roomId));
 
-      // Recover the countdown if the match has already started
-      // and this browser missed the match-started socket event.
+      await Promise.all([
+        fetchTeams(),
+        fetchRoom(),
+      ]);
+
+      // Recover the countdown if the match already started
+      // before this client joined or received the event.
       await recoverRunningMatch();
     };
 
@@ -160,23 +164,42 @@ const LobbyPage = () => {
   }, []);
 
   useEffect(() => {
-    const handleMatchStarted = async () => {
+    const handleMatchStarted = async (payload = {}) => {
       try {
-        const [sessionsResponse, roomResponse] =
-          await Promise.all([
-            api.get(`/sessions/${roomId}`),
-            api.get(`/rooms/${roomId}`),
-          ]);
+        // The backend emits the authoritative countdown timestamp.
+        let startsAt = payload.startsAt;
+
+        // Fallback for an event without a timestamp.
+        if (!startsAt) {
+          const roomResponse = await api.get(
+            `/rooms/${roomId}`
+          );
+
+          startsAt = roomResponse.data.starts_at;
+        }
+
+        if (!startsAt) {
+          throw new Error(
+            "Match start timestamp is missing"
+          );
+        }
+
+        const sessionsResponse = await api.get(
+          `/sessions/${roomId}`
+        );
 
         startCountdown(
           sessionsResponse.data,
-          roomResponse.data.starts_at
+          startsAt
         );
       } catch (error) {
         console.error(
           "Failed to start countdown:",
           error
         );
+
+        // Recover from the persisted match state if needed.
+        await recoverRunningMatch();
       }
     };
 

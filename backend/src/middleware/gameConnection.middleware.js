@@ -1,6 +1,4 @@
-const {
-  requireGameConnection,
-} = require("../services/connection.service");
+const prisma = require("../prisma/client");
 
 const authenticateGameConnection = async (
   req,
@@ -8,13 +6,9 @@ const authenticateGameConnection = async (
   next
 ) => {
   try {
-    const sessionId =
-      Number(req.params.sessionId);
-
-    const connectionToken =
-      req.headers[
-        "x-game-connection-token"
-      ];
+    const sessionId = Number(
+      req.params.sessionId
+    );
 
     if (
       !Number.isInteger(sessionId) ||
@@ -22,26 +16,39 @@ const authenticateGameConnection = async (
     ) {
       return res.status(400).json({
         error: "Invalid session ID",
+        code: "INVALID_SESSION_ID",
       });
     }
 
-    await requireGameConnection(
-      sessionId,
-      connectionToken
-    );
+    // Confirm that the game session exists.
+    // Do not require a single-tab connection token.
+    const session = await prisma.gameSession.findUnique({
+      where: {
+        id: sessionId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
 
-    req.gameConnectionToken =
-      connectionToken;
+    if (!session) {
+      return res.status(404).json({
+        error: "Game session not found",
+        code: "SESSION_NOT_FOUND",
+      });
+    }
 
+    req.gameSession = session;
     next();
   } catch (error) {
-    console.error(error.message);
+    console.error(
+      "[GAME SESSION VALIDATION ERROR]",
+      error
+    );
 
-    res.status(
-      error.statusCode || 401
-    ).json({
-      error: error.message,
-      code: error.code,
+    return res.status(500).json({
+      error: "Unable to validate game session",
     });
   }
 };

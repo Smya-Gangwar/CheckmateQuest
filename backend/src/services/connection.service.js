@@ -31,6 +31,7 @@ const acquireGameConnection = async (
     );
   }
 
+  // Preserve existing team credential validation.
   if (
     session.team_id !== teamId ||
     session.team.join_code !== joinCode
@@ -52,71 +53,14 @@ const acquireGameConnection = async (
     );
   }
 
-  const connectionToken =
-    createConnectionToken();
-
-  const now = new Date();
-
-  const expiresAt = new Date(
-    now.getTime() +
-      GAME_CONNECTION_LEASE_MS
-  );
-
-  /*
-   * IMPORTANT:
-   *
-   * updateMany() makes the acquisition atomic.
-   *
-   * If two devices attempt to connect at exactly
-   * the same time, only one can update the row.
-   */
-  const result =
-    await prisma.gameSession.updateMany({
-      where: {
-        id: sessionId,
-        team_id: teamId,
-
-        OR: [
-          {
-            active_connection_token: null,
-          },
-          {
-            active_connection_expires_at: {
-              lt: now,
-            },
-          },
-        ],
-      },
-
-      data: {
-        active_connection_token:
-          connectionToken,
-
-        active_connection_expires_at:
-          expiresAt,
-
-        active_connection_last_seen:
-          now,
-      },
-    });
-
-  if (result.count !== 1) {
-    throw Object.assign(
-      new Error(
-        "This game session is already open on another device or tab."
-      ),
-      {
-        statusCode: 409,
-        code: "GAME_SESSION_IN_USE",
-      }
-    );
-  }
-
+  // Return a token for compatibility with the existing frontend.
+  // Do not reserve the session or block another tab.
   return {
-    connectionToken,
-    expiresAt,
-    leaseMs:
-      GAME_CONNECTION_LEASE_MS,
+    connectionToken: createConnectionToken(),
+    expiresAt: new Date(
+      Date.now() + GAME_CONNECTION_LEASE_MS
+    ),
+    leaseMs: GAME_CONNECTION_LEASE_MS,
   };
 };
 

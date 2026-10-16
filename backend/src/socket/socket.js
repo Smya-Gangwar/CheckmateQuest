@@ -7,6 +7,8 @@ const initializeSocket = (server) => {
       origin: [
         "http://localhost:5173",
         "https://checkmate-quest.vercel.app",
+        "https://treasurehunt.infotrek26.tech",
+        "https://www.treasurehunt.infotrek26.tech",
       ],
       methods: ["GET", "POST"],
     },
