@@ -93,7 +93,7 @@ async function main() {
 
     {
         content: "Identify the NIT Trichy building shown.",
-        image_url: "https://www.nitt.edu/home/pd/projects/so-october-2011%20(2).JPG",
+        image_url: "https://drive.google.com/thumbnail?id=1j1PshELBkmk4kfH13i4KpuTriwsdBUl0&sz=w1000",
         question_type: "MCQ",
         options: [
         "Hostel Office",
